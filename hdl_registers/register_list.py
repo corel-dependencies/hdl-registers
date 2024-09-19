@@ -28,6 +28,7 @@ from .register_cpp_generator import RegisterCppGenerator
 from .register_html_generator import RegisterHtmlGenerator
 from .register_python_generator import RegisterPythonGenerator
 from .register_vhdl_generator import RegisterVhdlGenerator
+from typing import Optional
 
 
 class RegisterList:
@@ -36,7 +37,7 @@ class RegisterList:
     Used to handle the registers of a module. Also known as a register map.
     """
 
-    def __init__(self, name, source_definition_file):
+    def __init__(self, name, source_definition_file: Optional["Path"]):
         """
         Arguments:
             name (str): The name of this register list. Typically the name of the module that uses
@@ -71,7 +72,7 @@ class RegisterList:
         register_list.register_objects = copy.deepcopy(default_registers)
         return register_list
 
-    def append_register(self, name, mode, description):
+    def append_register(self, name, mode, description) -> "Register":
         """
         Append a register to this list.
 
@@ -92,13 +93,14 @@ class RegisterList:
 
         return register
 
-    def append_register_array(self, name, length, description):
+    def append_register_array(self, name, length, description, atomic=None) -> "RegisterArray":
         """
         Append a register array to this list.
 
         Arguments:
             name (str): The name of the register array.
             length (int): The number of times the register sequence shall be repeated.
+            atomic (str): Atomic read/write specification. See RegisterArray docstring.
         Return:
             :class:`.RegisterArray`: The register array object that was created.
         """
@@ -107,13 +109,13 @@ class RegisterList:
         else:
             base_index = 0
         register_array = RegisterArray(
-            name=name, base_index=base_index, length=length, description=description
+            name=name, base_index=base_index, length=length, description=description, atomic=atomic
         )
 
         self.register_objects.append(register_array)
         return register_array
 
-    def get_register(self, name):
+    def get_register(self, name) -> "Register":
         """
         Get a register from this list. Will only find single registers, not registers in a
         register array. Will raise exception if no register matches.

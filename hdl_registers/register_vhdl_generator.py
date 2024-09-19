@@ -10,6 +10,8 @@
 from .register import Register
 from .register_array import RegisterArray
 from .register_code_generator import RegisterCodeGenerator
+from .enum import EnumField
+from .register_field_type import EnumType
 
 
 class RegisterVhdlGenerator(RegisterCodeGenerator):
@@ -114,23 +116,56 @@ class RegisterVhdlGenerator(RegisterCodeGenerator):
                 opening = f"{vhdl_array_index} => "
 
                 register_definitions.append(
-                    f"{opening}(idx => {idx}, reg_type => {register_object.mode})"
+                    f"{opening}(idx => {idx}, reg_type => {register_object.mode}, atomic_lock => 0)"
                 )
-                default_values.append(f'{opening}"{register_object.default_value:032b}"')
+                default_values.append(
+                    f'{opening}"{register_object.default_value:032b}"'
+                )
 
                 vhdl_array_index = vhdl_array_index + 1
-            else:
+            elif isinstance(register_object, RegisterArray):
                 for array_index in range(register_object.length):
-                    for register in register_object.registers:
+                    for reg_index, register in enumerate(register_object.registers):
                         idx = f"{self._register_name(register, register_object)}({array_index})"
+                        atomic = 0
                         opening = f"{vhdl_array_index} => "
 
+                        if register_object.atomic == "all":
+                            if array_index == 0 and reg_index == 0:
+                                atomic = (
+                                        register_object.length
+                                        * len(register_object.registers)
+                                        - 1
+                                )
+                            elif (
+                                    array_index == register_object.length - 1
+                                    and reg_index == len(
+                                register_object.registers) - 1
+                            ):
+                                atomic = -(
+                                        register_object.length
+                                        * len(register_object.registers)
+                                        - 1
+                                )
+                        elif register_object.atomic == "row":
+                            if reg_index == 0:
+                                atomic = len(register_object.registers) - 1
+                            elif reg_index == len(register_object.registers) - 1:
+                                atomic = -(len(register_object.registers) - 1)
+
                         register_definitions.append(
-                            f"{opening}(idx => {idx}, reg_type => {register.mode})"
+                            f"{opening}(idx => {idx}, reg_type => {register.mode}, atomic_lock => {atomic})"
                         )
-                        default_values.append(f'{opening}"{register.default_value:032b}"')
+                        default_values.append(
+                            f'{opening}"{register.default_value:032b}"'
+                        )
 
                         vhdl_array_index = vhdl_array_index + 1
+            else:
+                raise TypeError(
+                    "invalid object %s.  It must be a Register or a RegisterArray."
+                    % register_objects
+                )
 
         array_element_separator = ",\n    "
         vhdl = f"""\
@@ -144,10 +179,32 @@ class RegisterVhdlGenerator(RegisterCodeGenerator):
 
 """
 
+        for register, register_array in self._iterate_registers(register_objects):
+            for field in register.fields:
+                name = f"{self._register_name(register, register_array)}_{field.name}"
+
+                if isinstance(field, EnumField):
+                    vhdl += f"""\
+  function {name}_down (
+    reg : std_ulogic_vector(31 downto 0))
+    return {name}_t is
+  begin
+    return {name}_t'val(to_integer(unsigned(reg({name}))));
+  end function;
+
+  function {name}_up (
+    value : {name}_t)
+    return std_ulogic_vector is
+  begin
+    return std_ulogic_vector(to_unsigned({name}_t'pos(value), {name}_width));
+  end function;
+
+"""
         return vhdl
 
     def _register_fields(self, register_objects):
         vhdl = ""
+        vhdl_enums = list()
         for register, register_array in self._iterate_registers(register_objects):
             for field in register.fields:
                 name = f"{self._register_name(register, register_array)}_{field.name}"
@@ -158,11 +215,38 @@ class RegisterVhdlGenerator(RegisterCodeGenerator):
                     vhdl += f"""\
   subtype {name} is natural range {field.width + field.base_index - 1} downto {field.base_index};
   constant {name}_width : positive := {field.width};
-  subtype {name}_t is {field.field_type.vhdl_typedef(bit_width=field.width)};
+"""
+                    field_type = field.field_type
+                    if not isinstance(field_type, EnumType):
+                        vhdl += f"""\
+  subtype {name}_t is {field_type.vhdl_typedef(bit_width=field.width)};
+"""
+                    else:
+                        vhdl_enum = ""
+                        vhdl_enum += f"""\
+  type {name}_t is {field_type.vhdl_typedef(field_type.expected_bit_width)};
+  type {name}_vector_t is array({name}_t) of integer;
+"""
+                        if not field_type.is_sequential:
+                            # User defined enum
+                            vhdl_enum += f"""\
+  constant {name}_c : {name}_vector_t := {field_type.vhdl_constant()};
 """
 
-            if register.fields:
-                vhdl += "\n"
+                        vhdl_enum += f"""\
+  function {name}_down (
+    reg : std_ulogic_vector(31 downto 0))
+    return {name}_t;
+  function {name}_up (
+    value : {name}_t)
+    return std_ulogic_vector;
+"""
+                        vhdl_enums.append(vhdl_enum)
+
+        if vhdl_enums:
+            vhdl += "  --\n"
+            vhdl += "  --\n".join(vhdl_enums)
+            vhdl += "\n"
 
         return vhdl
 

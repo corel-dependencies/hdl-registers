@@ -7,6 +7,10 @@
 # --------------------------------------------------------------------------------------------------
 
 from abc import ABC, abstractmethod
+from typing import Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from enum import IntEnum
 
 
 def _from_unsigned_binary(
@@ -368,3 +372,45 @@ class SignedFixedPoint(Fixed):
                 fractional part of the field value.
         """
         return cls(max_bit_index=integer_bit_width - 1, min_bit_index=-fraction_bit_width)
+
+
+def enum_bit_width(enum: Type["IntEnum"]) -> int:
+    return (len(enum) - 1).bit_length()
+
+
+class EnumType(FieldType):
+    def __init__(self, enum: Type["IntEnum"]):
+        values = [e.value for e in enum]
+        self._enum = enum
+        self._enum_list = list(enum)
+        self._min_value = min(values)
+        self._max_value = max(values)
+        self.expected_bit_width = enum_bit_width(enum)
+        self.is_sequential = [e.value for e in enum] == list(range(len(enum)))
+
+    def min_value(self, bit_width: int) -> int:
+        return self._min_value
+
+    def max_value(self, bit_width: int) -> int:
+        return self._max_value
+
+    def convert_from_unsigned_binary(
+        self, bit_width: int, unsigned_binary: int
+    ) -> "IntEnum":
+        try:
+            return self._enum_list[unsigned_binary]
+        except IndexError:
+            raise ValueError(f"No value in enum at index: {unsigned_binary}")
+
+    def convert_to_unsigned_binary(self, bit_width: int, value: "IntEnum") -> int:
+        return self._enum_list.index(round(value))
+
+    def vhdl_typedef(self, bit_width: int):
+        return f"({', '.join([e.name for e in self._enum])})"
+
+    def vhdl_constant(self):
+        """VHDL generator code for the enum encoding attribute."""
+        return f"({', '.join([str(e.value) for e in self._enum])})"
+
+    def __repr__(self):
+        return self.__class__.__name__

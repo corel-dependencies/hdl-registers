@@ -16,7 +16,7 @@ class RegisterArray:
     number of times in a register list.
     """
 
-    def __init__(self, name, base_index, length, description):
+    def __init__(self, name, base_index, length, description, atomic=None):
         """
         Arguments:
             name (str): The name of this register array.
@@ -24,7 +24,41 @@ class RegisterArray:
                 the register list.
             length (int): The number of times the register sequence shall be repeated.
             description (str): Textual register array description.
+            atomic (str): Atomic read/write specification.
+                In the following the register array is described as a 2D
+                structure having a number of rows equal to length and a number
+                of columns equal to the number of appended registers.
+
+                None: no additional logic added.  Each read/write transaction
+                reads/writes a register.
+                'row': the addresses in each row are marked for atomic
+                read/write.  The total number of atomic areas is equal to
+                length.
+                'all': the addresses in the whole register array are marked for
+                atomic read/write.  This creates one atomic area.
+
+                For each atomic area the generated logic depends on the
+                registers type.  In any case the bus is expected to access the
+                area from the lowest address to the highest address.
+                'r' : reading at the first address of the area latches all the
+                values provided by fabric to an internal buffer.  Reading at any
+                other address of the area will access those latched values.
+                'w' : all write operations will write data in an internal buffer
+                that is not connected to fabric.  Writing at the last address of
+                the area transfers all those values to another buffer connected
+                to fabric.
+                'r_w': write behavior as in 'w'.  Read will directly access the
+                values in the buffer connected to fabric.
+                'wpulse' : behaviour as in 'w' but the buffer connected to
+                fabric is zero-cleared after one clock cycle.  The written
+                values are available to fabric for one clock cycle.
+                'r_wpulse': read behavior as in 'r'.  Write bevahior as in
+                'wpulse'.
         """
+        if atomic not in (None, "row", "all"):
+            raise ValueError('atomic must be None or "entry" or "all"')
+        self.atomic = atomic
+
         self.name = name
         self.base_index = base_index
         self.length = length
@@ -44,6 +78,15 @@ class RegisterArray:
         Return:
             :class:`.Register`: The register object that was created.
         """
+        if self.registers:
+            if self.atomic:
+                if mode != self.registers[0].mode:
+                    raise ValueError(
+                        f"Cannot append register with mode {mode}.  All registers "
+                        f"in the register array must have the same access modes "
+                        f"if atomic={self.atomic}."
+                    )
+
         index = len(self.registers)
         register = Register(name, index, mode, description)
 
@@ -97,5 +140,6 @@ name={self.name},\
 base_index={self.base_index},\
 length={self.length},\
 description={self.description},\
+atomic={self.atomic},\
 registers={','.join([repr(register) for register in self.registers])},\
 )"""

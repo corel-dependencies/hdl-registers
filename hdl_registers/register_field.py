@@ -43,6 +43,16 @@ class RegisterField(ABC):
         return DEFAULT_FIELD_TYPE  # Default for all RegisterFields
 
     @property
+    def name(self) -> str:
+        """Name of the field."""
+        raise NotImplementedError("Must be implemented in child class")
+
+    @property
+    def description(self) -> str:
+        """Name of the field."""
+        raise NotImplementedError("Must be implemented in child class")
+
+    @property
     @abstractmethod
     def width(self):
         """

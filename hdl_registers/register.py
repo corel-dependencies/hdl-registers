@@ -9,6 +9,12 @@
 from .bit import Bit
 from .bit_vector import BitVector
 from .register_field import FieldType, DEFAULT_FIELD_TYPE
+from .enum import EnumField
+from typing import Type, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from enum import IntEnum
+    from .register_field import RegisterField
 
 
 class RegisterMode:
@@ -60,7 +66,7 @@ class Register:
         self.index = index
         self.mode = mode
         self.description = description
-        self.fields = []
+        self.fields: list["RegisterField"] = []
         self.bit_index = 0
 
     def append_bit(self, name, description, default_value):
@@ -118,6 +124,28 @@ class Register:
             raise ValueError(f'Maximum width exceeded for register "{self.name}"')
 
         return bit_vector
+
+    def append_enum(
+            self,
+            name,
+            description,
+            enum: Type["IntEnum"],
+            default_value: "IntEnum"
+    ):
+        enum_field = EnumField(
+            name=name,
+            base_index=self.bit_index,
+            description=description,
+            enum=enum,
+            default_value=default_value
+        )
+        self.fields.append(enum_field)
+
+        self.bit_index += enum_field.width
+        if self.bit_index > 32:
+            raise ValueError(f'Maximum width exceeded for register "{self.name}"')
+
+        return enum_field
 
     @property
     def default_value(self):

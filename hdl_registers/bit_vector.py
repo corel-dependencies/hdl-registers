@@ -37,9 +37,9 @@ class BitVector(RegisterField):
                 only "1" and "0".
             field_type (FieldType): The field type used to interpret the bits of the field.
         """
-        self.name = name
+        self._name = name
         self._base_index = base_index
-        self.description = description
+        self._description = description
 
         self._check_width(width)
         self._width = width
@@ -48,6 +48,14 @@ class BitVector(RegisterField):
         # Assign self._default_value via setter
         self.default_value = default_value
         self._field_type = field_type
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
 
     @property
     def field_type(self) -> FieldType:

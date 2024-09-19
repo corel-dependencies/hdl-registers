@@ -25,13 +25,21 @@ class Bit(RegisterField):
             description (str): Textual bit array description.
             default_value (str): Default value. Either "1" or "0".
         """
-        self.name = name
+        self._name = name
         self._base_index = index
-        self.description = description
+        self._description = description
 
         self._default_value = None
         # Assign self._default_value via setter
         self.default_value = default_value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
 
     @property
     def base_index(self):
