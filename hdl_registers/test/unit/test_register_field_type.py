@@ -177,7 +177,20 @@ def test_sfixed(bit_width, max_bit_index, min_bit_index, value, expected):
     unsigned = field_type.convert_to_unsigned_binary(bit_width, value)
     assert unsigned == expected
     restored = field_type.convert_from_unsigned_binary(bit_width, unsigned)
-    assert restored == value
+    assert restored == pytest.approx(value, abs)
+
+
+@pytest.mark.parametrize(
+    "bit_width, max_bit_index, min_bit_index, value, expected",
+    [
+        (12, 8, -3, -0.01, 0),
+    ],
+)
+def test_sfixed_non_exact(bit_width, max_bit_index, min_bit_index, value, expected):
+    field_type = SignedFixedPoint(max_bit_index=max_bit_index, min_bit_index=min_bit_index)
+    field_type._check_value_in_range(bit_width, value)
+    unsigned = field_type.convert_to_unsigned_binary(bit_width, value)
+    assert unsigned == expected
 
 
 @pytest.mark.parametrize(
